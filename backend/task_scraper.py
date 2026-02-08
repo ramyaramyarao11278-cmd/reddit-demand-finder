@@ -5,12 +5,61 @@ import requests
 import time as time_module
 import os
 
+_TOKEN_CACHE = {
+    "access_token": None,
+    "expires_at": 0,
+}
+
 def _get_headers():
     ua = os.getenv(
         "REDDIT_USER_AGENT",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     )
     return {"User-Agent": ua}
+
+
+def _get_oauth_token(debug_errors=None):
+    client_id = os.getenv("REDDIT_CLIENT_ID")
+    client_secret = os.getenv("REDDIT_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return None
+
+    now = time_module.time()
+    if _TOKEN_CACHE["access_token"] and now < (_TOKEN_CACHE["expires_at"] - 30):
+        return _TOKEN_CACHE["access_token"]
+
+    token_url = "https://www.reddit.com/api/v1/access_token"
+    data = {"grant_type": "client_credentials"}
+    headers = _get_headers()
+
+    try:
+        resp = requests.post(
+            token_url,
+            auth=(client_id, client_secret),
+            data=data,
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        access_token = payload.get("access_token")
+        expires_in = int(payload.get("expires_in", 0) or 0)
+        if not access_token or expires_in <= 0:
+            raise requests.RequestException(f"Missing access_token in response: {payload}")
+
+        _TOKEN_CACHE["access_token"] = access_token
+        _TOKEN_CACHE["expires_at"] = now + expires_in
+        return access_token
+    except requests.RequestException as e:
+        if debug_errors is not None:
+            debug_errors.append({
+                "subreddit": None,
+                "url": token_url,
+                "status": getattr(getattr(e, "response", None), "status_code", None),
+                "error": f"oauth_token_error: {str(e)}",
+            })
+        print(f"[TASK] OAuth token fetch failed: {e}")
+        return None
 
 # 默认扫描的 subreddit 列表
 DEFAULT_TASK_SUBREDDITS = [
@@ -67,7 +116,11 @@ def _fetch_subreddit_tasks(subreddit_name, keyword, limit, time_filter, debug_er
     """
     从单个 subreddit 抓取 TASK 帖子
     """
-    url = f"https://www.reddit.com/r/{subreddit_name}/search.json"
+    token = _get_oauth_token(debug_errors=debug_errors)
+    if token:
+        url = f"https://oauth.reddit.com/r/{subreddit_name}/search"
+    else:
+        url = f"https://www.reddit.com/r/{subreddit_name}/search.json"
     params = {
         "q": keyword,
         "restrict_sr": "on",
@@ -78,7 +131,10 @@ def _fetch_subreddit_tasks(subreddit_name, keyword, limit, time_filter, debug_er
     }
 
     try:
-        response = requests.get(url, headers=_get_headers(), params=params, timeout=15)
+        headers = _get_headers()
+        if token:
+            headers = {**headers, "Authorization": f"Bearer {token}"}
+        response = requests.get(url, headers=headers, params=params, timeout=15)
         response.raise_for_status()
         data = response.json()
     except requests.HTTPError as e:
