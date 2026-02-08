@@ -93,6 +93,16 @@ def root():
 def health():
     return {"status": "ok"}
 
+
+@app.get("/api/version")
+def version():
+    return {
+        "status": "ok",
+        "railway_git_commit": os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("RAILWAY_GIT_COMMIT") or None,
+        "railway_environment": os.getenv("RAILWAY_ENVIRONMENT") or None,
+        "railway_service": os.getenv("RAILWAY_SERVICE_NAME") or None,
+    }
+
 # 模拟数据，用于测试 UI
 MOCK_POSTS = [
     {
