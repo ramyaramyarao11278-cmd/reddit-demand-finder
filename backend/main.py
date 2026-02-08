@@ -83,6 +83,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}
+
 # 模拟数据，用于测试 UI
 MOCK_POSTS = [
     {
