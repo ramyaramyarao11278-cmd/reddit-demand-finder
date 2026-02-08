@@ -1,0 +1,6 @@
+# Root requirements - same as backend
+fastapi
+uvicorn
+requests
+python-dotenv
+schedule
