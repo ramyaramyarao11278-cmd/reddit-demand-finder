@@ -225,13 +225,23 @@ def scan_tasks(
     sub_list = [s.strip() for s in subreddits.split(",") if s.strip()] or None
     kw = keyword.strip() or None
 
-    posts = scrape_task_posts(subreddits=sub_list, keyword=kw, limit=limit, time_filter=time_filter)
+    debug_errors = []
+    posts = scrape_task_posts(
+        subreddits=sub_list,
+        keyword=kw,
+        limit=limit,
+        time_filter=time_filter,
+        debug_errors=debug_errors,
+    )
 
     if not posts:
         return {
             "stats": {"total": 0, "skill_match": 0, "maybe_match": 0, "irrelevant": 0, "danger": 0},
             "posts": [],
-            "message": "No TASK posts found."
+            "message": "No TASK posts found.",
+            "debug": {
+                "errors": debug_errors,
+            },
         }
 
     classified = classify_task_posts(posts)

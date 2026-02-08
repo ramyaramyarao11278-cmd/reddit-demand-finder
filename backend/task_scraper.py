@@ -3,10 +3,14 @@ TASK 帖子扫描器 - 专门扫描 r/slavelabour, r/forhire 等板块的 [TASK]
 """
 import requests
 import time as time_module
+import os
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
+def _get_headers():
+    ua = os.getenv(
+        "REDDIT_USER_AGENT",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    )
+    return {"User-Agent": ua}
 
 # 默认扫描的 subreddit 列表
 DEFAULT_TASK_SUBREDDITS = [
@@ -24,7 +28,7 @@ SKILL_KEYWORDS = (
 )
 
 
-def scrape_task_posts(subreddits=None, keyword=None, limit=50, time_filter="day"):
+def scrape_task_posts(subreddits=None, keyword=None, limit=50, time_filter="day", debug_errors=None):
     """
     扫描多个 subreddit 的 TASK 帖子
     - subreddits: 要扫描的 subreddit 列表，默认使用 DEFAULT_TASK_SUBREDDITS
@@ -40,7 +44,7 @@ def scrape_task_posts(subreddits=None, keyword=None, limit=50, time_filter="day"
     all_posts = []
 
     for sub in subreddits:
-        posts = _fetch_subreddit_tasks(sub, keyword, limit, time_filter)
+        posts = _fetch_subreddit_tasks(sub, keyword, limit, time_filter, debug_errors=debug_errors)
         all_posts.extend(posts)
         # 避免请求过快被 Reddit 限流
         time_module.sleep(1.0)
@@ -59,7 +63,7 @@ def scrape_task_posts(subreddits=None, keyword=None, limit=50, time_filter="day"
     return unique_posts
 
 
-def _fetch_subreddit_tasks(subreddit_name, keyword, limit, time_filter):
+def _fetch_subreddit_tasks(subreddit_name, keyword, limit, time_filter, debug_errors=None):
     """
     从单个 subreddit 抓取 TASK 帖子
     """
@@ -74,10 +78,28 @@ def _fetch_subreddit_tasks(subreddit_name, keyword, limit, time_filter):
     }
 
     try:
-        response = requests.get(url, headers=HEADERS, params=params, timeout=15)
+        response = requests.get(url, headers=_get_headers(), params=params, timeout=15)
         response.raise_for_status()
         data = response.json()
+    except requests.HTTPError as e:
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if debug_errors is not None:
+            debug_errors.append({
+                "subreddit": subreddit_name,
+                "url": url,
+                "status": status,
+                "error": str(e),
+            })
+        print(f"[TASK] Failed to fetch r/{subreddit_name} (status={status}): {e}")
+        return []
     except requests.RequestException as e:
+        if debug_errors is not None:
+            debug_errors.append({
+                "subreddit": subreddit_name,
+                "url": url,
+                "status": None,
+                "error": str(e),
+            })
         print(f"[TASK] Failed to fetch r/{subreddit_name}: {e}")
         return []
 
