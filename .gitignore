@@ -1,0 +1,32 @@
+# Environment variables (contains tokens and API keys)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_push.py
+test_notify.py
+test_e2e.py
+test_scan.py
+
+# Export
+project_export.txt
+code_export.txt
+filelist.txt
